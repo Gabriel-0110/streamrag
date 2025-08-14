@@ -1,5 +1,8 @@
 from __future__ import annotations
-from PyPDF2 import PdfReader
+try:
+    from pypdf import PdfReader
+except ImportError:
+    from PyPDF2 import PdfReader
 
 
 def extract_text_from_pdf(path: str) -> str:

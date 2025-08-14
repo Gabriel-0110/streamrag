@@ -1,7 +1,7 @@
 from __future__ import annotations
 from pathlib import Path
 from typing import Dict, Any, List
-from .. import env  # ensure .env is loaded via side effect
+from ... import env as _env  # ensure .env is loaded via side effect  # noqa: F401
 from .pdf_text import extract_text_from_pdf
 from .chunking import simple_chunk_text
 from .embeddings import embed_texts
@@ -49,6 +49,7 @@ def ingest_paths(
             rows.append(
                 {
                     "url": url,
+                    "source": source or path.name,
                     "chunk_number": i,
                     "content": chunk,
                     "metadata": {"source": source or path.name},

@@ -14,6 +14,7 @@ Build a clean, minimal, and practical RAG app:
 - kb_search tool that calls a Postgres RPC for fast similarity search
 - Streaming responses in the UI with clear source attribution
 - Tiny codebase with tests, ready to extend
+- Clean, modular architecture with logical separation
 
 ## Architecture
 
@@ -75,44 +76,48 @@ ingUpsert --> dbTable
 git clone https://github.com/Gabriel-0110/rag-vs-app-example.git
 cd rag-vs-app-example
 
-# Create virtualenv and install
-python -m venv .venv
-. .venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+# Install with uv (recommended) or pip
+uv sync
+# OR: pip install -r requirements.txt
 
 # Environment
-cp .env.example .env   # or create manually
+cp config/ENV.sample .env   # or create manually
 # Fill in: OPENAI_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (or anon key)
 ```
 
 ### 2) Prepare the database
 
-Run the SQL in `rag-example.sql` in the Supabase SQL editor:
+Run the SQL in `sql/setup_database.sql` in the Supabase SQL editor:
 
-- Enables pgvector
-- Creates `rag_pages` table + ivfflat index
-- Defines `match_rag_pages` RPC
-- Enables RLS with public read policy
+- Enables pgvector extension
+- Creates `rag_pages` table with proper indexes
+- Defines `match_rag_pages` RPC function
+- Sets up optimal performance indexes
 
 ### 3) Ingest some documents
 
 ```powershell
 # Ingest any TXT/PDF files you have locally
-python -m src.ingestion.ingest docs/links.md
+python -m src.core.ingestion.ingest docs/links.md
 # Multiple files supported
-python -m src.ingestion.ingest path\to\file1.txt path\to\report.pdf
+python -m src.core.ingestion.ingest path\to\file1.txt path\to\report.pdf
 ```
 
 Flags you can tweak:
 
 ```powershell
-python -m src.ingestion.ingest path\to\file.pdf --max-chars 1200 --overlap 150 --source my-upload
+python -m src.core.ingestion.ingest path\to\file.pdf --max-chars 1200 --overlap 150 --source my-upload
 ```
 
 ### 4) Start the UI
 
 ```powershell
-streamlit run src/app_streamlit.py
+# Always use uv run to ensure correct environment
+uv run streamlit run src/ui/app_streamlit.py
+
+# OR activate environment first, then run normally
+.\.venv\Scripts\Activate.ps1
+streamlit run src/ui/app_streamlit.py
 ```
 
 - Upload TXT/PDF and click Ingest
@@ -121,7 +126,7 @@ streamlit run src/app_streamlit.py
 
 ## Configuration
 
-Provide these in `.env` (see `.env.example`):
+Provide these in `.env` (see `config/ENV.sample`):
 
 - OPENAI_API_KEY: OpenAI key for embeddings + generation
 - SUPABASE_URL: Supabase project URL
@@ -130,23 +135,38 @@ Provide these in `.env` (see `.env.example`):
 
 ## Components
 
-- Ingestion: `src/ingestion/`
-  - `pdf_text.py` (PyPDF2 extract)
-  - `chunking.py` (character chunks with overlap)
-  - `embeddings.py` (OpenAI embeddings)
-  - `supabase_store.py` (upsert + similarity_search via RPC)
-  - `ingest.py` (CLI wrapper)
-- Agent: `src/agent/`
-  - `kb.py` (@Tool kb_search that calls the RPC)
-  - `agent.py` (OpenAI model + tools + system prompt)
-  - `response_templates.py` (prompt text)
-  - `compose_answer.py` (helper for citations)
-- UI: `src/app_streamlit.py` (uploads + chat + sources)
+### Core Business Logic (`src/core/`)
+
+- **Ingestion Pipeline** (`src/core/ingestion/`):
+  - `pdf_text.py` - PDF text extraction (pypdf)
+  - `chunking.py` - Character-based chunks with overlap
+  - `embeddings.py` - OpenAI embedding generation
+  - `supabase_store.py` - Database operations + similarity search
+  - `ingest.py` - Main ingestion CLI
+
+- **AI Agent** (`src/core/agent/`):
+  - `kb.py` - Knowledge base search tool (@Tool decorator)
+  - `agent.py` - Pydantic AI agent with OpenAI model
+  - `response_templates.py` - System prompts and templates
+
+### User Interface (`src/ui/`)
+- `app_streamlit.py` - Main Streamlit web interface
+
+### Configuration (`config/`)
+- `ENV.sample` - Environment variables template
+- `pytest.ini` - Test configuration
+
+### Database (`sql/`)
+- `setup_database.sql` - Complete Supabase schema setup
+
+### Scripts (`scripts/`)
+- `try_agent.py` - Test agent functionality
+- `debug_env_supabase.py` - Debug database connection
 
 ## Programmatic usage
 
 ```python
-from src.agent.agent import agent
+from src.core.agent.agent import agent
 
 res = agent.run_sync("Summarize uploaded docs and cite sources.")
 print(res.output)
@@ -155,13 +175,20 @@ print(res.output)
 ## Tests
 
 ```powershell
+# Run tests
 pytest -q
+
+# Or with uv
+uv run pytest -q
+
+# Run linting
+uv run ruff check src/
 ```
 
 ## Troubleshooting
 
 - Missing OpenAI key: set OPENAI_API_KEY in .env
-- RPC not found: run `rag-example.sql` in Supabase
+- RPC not found: run `sql/setup_database.sql` in Supabase
 - Embedding dimension mismatch: ensure pgvector column is `vector(1536)` and using `text-embedding-3-small`
 - Slow similarity: ivfflat index needs ANALYZE; also keep `match_count` sane (e.g., 5–10)
 - RLS blocked writes: upserts use your key; service role key is easiest for server-side ingestion

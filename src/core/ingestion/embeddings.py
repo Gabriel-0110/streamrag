@@ -2,6 +2,10 @@ from __future__ import annotations
 from typing import List
 import os
 from openai import OpenAI
+from ... import env as _env  # Load environment variables  # noqa: F401
+
+
+__all__ = ["embed_texts", "EMBED_MODEL"]
 
 
 EMBED_MODEL = os.getenv("EMBED_MODEL", "text-embedding-3-small")

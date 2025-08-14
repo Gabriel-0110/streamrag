@@ -1,5 +1,13 @@
 from __future__ import annotations
-from src.agent.agent import agent
+import sys
+import os
+
+# Add project root to path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# Load environment variables
+from src import env as _env  # noqa: F401
+from src.core.agent.agent import agent
 
 
 def main():
